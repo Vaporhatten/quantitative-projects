@@ -1,0 +1,49 @@
+#This notebook is a simple project using coke(ticker "KO") to show probabilities of transitioning between states, defined in standard deviations
+# standardised distances from the mean(expanding average of cokes daily), this informatiuon can be used to characterise regimes
+# and thereby infer if we are in e.g a trendy, choppy, or bearish regime
+
+#IMPORT RELEVANT LIBRARIES
+import numpy as np
+import seaborn as sns
+import pandas as pd
+import yfinance as yf
+import datetime
+today= datetime.date.today()
+df= yf.download("KO", start= "2021-03-30", end= today, interval= "1d)
+df["returns"]= (df["Close"].pct_change())*100
+x= df["returns"]
+
+#Z-SCORING
+import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
+xmean= np.mean(x) #an improvement i would suggest is using rolling mean rather than expanding mean to weigh more heavily on recent behaviour  
+xstd= np.std(x) # same for standard deviation
+zscore= []
+for i in x:
+  jj=(i-xmean)/xstd
+  zscore.append(jj)
+zscore= np.array(zscore)
+np.set_printoptions(suppress= True)
+
+#DISCRETISE IN Z-SCORES, Z-SCORES ARE CLEAN VALUES SHOWING DISTANCES FROM THE MEAN, BOTH IN POSITIVE AND NEGATIVE LEG/TAIL
+bins= [-np.inf,-4,-3,-2,-1,0,1,2,3,4,np.inf]
+labels=["-4+stds","-3std","-2std","-1std","-0stds","0 stds","1std","2stds","3stds","4+ stds"]
+states= pd.cut(zscore,bins=bins,labels=labels)
+trans= list(zip(states[:-1].astype(str),states[1:].astype(str)))
+trans_matrix = pd.crosstab(
+    pd.Series(i[0] for i in trans),
+    pd.Series(i[1] for i in trans),
+    normalize="index"
+).reindex(index=labels, columns=labels, fill_value=0)
+
+tm= trans_matrix.to_numpy()
+number_of_days_into_the_future= 200
+tm1= np.linalg.matrix_power(tm,number_of_days_into_the_future)
+
+plt.figure(figsize= (10,6)) 
+sns.heatmap(trans_matrix*100, annot= True, cmap= "viridis")  #seaborn to plot matrix
+plt.title(f" STATE TRANSITION MATRIX OF COKE STOCK RETURNS IN PROBABILITY % AT TIME {today}")
+plt.ylabel("from")
+plt.xlabel("to")
+plt.show()
