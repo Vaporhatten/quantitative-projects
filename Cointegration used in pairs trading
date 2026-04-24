@@ -1,0 +1,82 @@
+def coint(yticker, xticker,per, inter): #inter is interval, per is period
+    #import
+    import yfinance as yf
+    import time
+    import numpy as np
+    import matplotlib.pyplot as plt
+    import pandas as pd
+    import datetime
+    today= datetime.date.today()
+    #get data
+    de_raw = yf.download(yticker, period= per, interval= inter)
+    df_raw = yf.download(xticker,period= per, interval= inter)
+    #define features
+    x_lvl = np.array(df_raw["Close"]).flatten()
+    y_lvl = np.array(de_raw["Close"]).flatten() 
+    x = (pd.Series(x_lvl).pct_change().values) * 100
+    y = (pd.Series(y_lvl).pct_change().values) * 100
+    df = pd.DataFrame({"x": x, "y": y})
+    df["x_lvl"] = x_lvl
+    df["y_lvl"] = y_lvl
+    df= df.dropna()
+    df["β"]= (df["x"] * df["y"]).expanding().sum() / (df["x"]**2).expanding().sum()
+    df = df.dropna()
+    df["βx"]= df["β"] * df["x"]
+    axx= np.array(df["βx"]).cumsum()
+    a=  np.array(df["x"]).cumsum()
+    ax=  np.array(df["y"]).cumsum()
+    plt.plot(axx, label= "βx")
+    plt.plot(a, label= "x")
+    plt.plot(ax, label= "y"); plt.legend()
+    df["ε"]= df["y_lvl"] - (df["β"] * df["x_lvl"])
+    df["lagε"]= df["ε"].shift(1)
+    df["lagΔy"]= df["y"].shift(1)
+    df["lagΔx"]= df["x"].shift(1)
+    df= df.dropna()
+    df["αy"]=  (df["lagε"]*df["y"]).expanding().sum() /   (df["lagε"]**2).expanding().sum()
+    df["γ"]= (df["lagΔy"]*df["y"]).expanding().sum() / (df["lagΔy"]**2).expanding().sum()
+    df["δ"]=(df["lagΔx"]*df["y"]).expanding().sum() / (df["lagΔx"]**2).expanding().sum()
+    df= df.dropna()
+    df["2ε"]= df["y"] - (df["β"] * df["x"])  #phi check needs residual to be based on differenced close data/returns
+    df["lag2ε"]= df["2ε"].shift(1)
+    df= df.dropna()
+    lag= df["lag2ε"] ; today= df["2ε"]
+    φ= np.dot(lag,today)/np.dot(lag,lag)
+    print( "Phi is:",φ)
+    if φ> 1:
+        print("THERE IS NO COINTEGRATION\n")
+    if 0< φ >1:
+        print("THERE IS STABLE COINTEGRATION\n")
+    if φ< 0:
+        print("NO COINTEGRATION, THERE IS PULLBACK ,ALTHOUGH, IT IS ARBED WAY TOO QUICKLY, NOT POSSIBLE TO WORK WITH\n")
+    half_life= np.log(0.5)/np.log(abs(φ))
+    if half_life <1:
+        print("HALF OF THE RESIDUAL IS GONE IN LESS THAN A DAY\n")
+    if half_life >1:
+        print("IT TAKES MORE THAN A DAY FOR THE RESIDUAL TO DECAY. SLOW RETRACEMENT\n")
+        print(f"\nφ:{φ:.4f}")
+        print(f"\nit takes {half_life:.2f} days for half of the residual to decay\n")
+    #compute co-integration
+    df["forecast"]= (df["αy"]*df["lagε"]) + (df["γ"]*df["lagΔy"]) + (df["δ"]*df["lagΔx"])
+    forecast= np.array(df["forecast"]).cumsum()
+    #check performance
+    df["buy"]= ((df["forecast"]>0).astype(int)).shift(1)
+    df["sell"]= (((df["forecast"]<0).astype(int)) *-1).shift(1)
+    buy_returns= (df["buy"]*df["y"]).sum()
+    sell_returns= (df["sell"]*df["y"]).sum()
+    print(f"Buy signal returns: {buy_returns:.5f}%\n")
+    print(f"Sell signal returns: {sell_returns:.5f}%\n")
+    df["noise"]= (df["y"] - df["forecast"])
+    #plots
+    plt.figure()
+    plt.title(f"strategy on {yticker} vs realised {yticker} equity curve for {per}")
+    plt.plot(forecast, label= "forecast")
+    plt.plot(ax, label="y") ; plt.legend()
+    plt.figure()
+    plt.plot(np.cumsum(df["sell"]*df["y"]), label= "sell side")
+    plt.plot(np.cumsum(df["buy"]*df["y"]), label= "buy side")
+    plt.plot(ax, label="Pepsi returns") ; plt.legend()
+    print(df.tail())
+    #done
+
+coint("KO","PLTR","1y","1d")  #example, note this is a very non correlated pair thus the performance
