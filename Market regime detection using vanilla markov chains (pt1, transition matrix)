@@ -1,5 +1,5 @@
 #This notebook is a simple project using coke(ticker "KO") to show probabilities of transitioning between states, defined in standard deviations
-# standardised distances from the mean(expanding average of cokes daily), this informatiuon can be used to characterise regimes
+# standardised distances from the mean(expanding average of cokes daily returns in percentage), this information can be used to characterise regimes
 # and thereby infer if we are in e.g a trendy, choppy, or bearish regime
 
 #IMPORT RELEVANT LIBRARIES
